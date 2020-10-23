@@ -6,15 +6,19 @@ import java.nio.ByteBuffer;
 public class ByteUtils {
     private static ByteBuffer buffer = ByteBuffer.allocate(Long.BYTES);
 
-    public static byte[] longToBytes(long x) {
-        buffer.putLong(0, x);
-        return buffer.array();
+    public static byte[] longToBytes(long l) {
+        byte[] result = new byte[4];
+        for (int i = 3; i >= 0; i--) {
+            result[i] = (byte)(l & 0xFF);
+            l >>= 8;
+        }
+        return result;
     }
 
     public static long bytesToLong(byte[] bytes) {
         long result = 0;
         for (int i = 0; i < bytes.length; i++) {
-            result <<= (bytes.length);
+            result <<= 8;
             result |= (bytes[i] & 0xFF);
         }
        // System.out.println("res = " + result);
