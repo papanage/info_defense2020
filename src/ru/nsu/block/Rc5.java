@@ -13,7 +13,7 @@ import static java.lang.Long.max;
 
 
 /**
- * Rc5 block-chiefr
+ * Rc5 block-encoding
  * java implementation
  * @author Lusnikov Vasily
  * FIT NSU 2020
@@ -57,7 +57,7 @@ public class Rc5 {
     /**
      *  key
      */
-    byte[] key = new byte[KEY_LENGTH];
+    public byte[] key = new byte[KEY_LENGTH];
 
     /**
      * mass with part of key
@@ -71,9 +71,16 @@ public class Rc5 {
      */
     Long[] s = new Long[2*(ROUND_COUNT+1)];
 
+    /**
+     * data for encoding
+     * actually we work with integer,
+     * but packing in little 4 byte of long
+     */
     long A = 0xFFFFFF, B = -1432423;
-    long OUT_A, OUT_B;
 
+    /**
+     * put big key in mass by part of length = BLOCK_HALF/8
+     */
     private void keyToWords() {
         l_mass = new Vector<>();
         for (int i = 0; i < KEY_LENGTH/(BLOCK_HALF/8); i++) {
@@ -82,6 +89,9 @@ public class Rc5 {
 
     }
 
+    /**
+     * generating table of extending key
+     */
     private void extendKey() {
         s[0] = P % MOD ;
         for (int i = 1; i < 2*(ROUND_COUNT+1); i++) {
@@ -100,6 +110,9 @@ public class Rc5 {
         }
     }
 
+    /**
+     * round encoding
+     */
     private void code() {
         System.out.println("start: " +A + " " + B);
         A = (A + s[0]) % MOD;
@@ -109,6 +122,10 @@ public class Rc5 {
             B = (ByteUtils.cycleShift(B^A, A) % MOD + s[2*i + 1]) % MOD;
         }
     }
+
+    /**
+     * decoding
+     */
     private void decode() {
         for (int i = ROUND_COUNT - 1; i  >= 0; i--) {
             B = (ByteUtils.cycleShift((B - s[2*i + 1] + MOD) % MOD, -A) % MOD) ^ A;
@@ -118,6 +135,13 @@ public class Rc5 {
         B = (B - s[1] + MOD) % MOD;
         System.out.println("res: " + A + " " + B);
     }
+
+    /**
+     * some utility func for power finding
+     * @param x
+     * @param y
+     * @return
+     */
     private long pow(long x, long y) {
         long res = 1;
         while (y-- != 0) {
@@ -136,77 +160,81 @@ public class Rc5 {
         shake();
     }
 
+    /**
+     * code file
+     * @param path path to file
+     * @throws IOException if some gone wrong
+     */
     public void codeFile(String path) throws IOException {
         InputStream inputStream = Rc5.class.getResourceAsStream(path);
         byte[] file = inputStream.readAllBytes();
         inputStream.close();
         Vector<Long> code = new Vector<>();
         for (int i = 0; i < file.length; i += 8) {
-            if (i + 4 > file.length) {
-                A = ByteUtils.bytesToLong(Arrays.copyOfRange(file, i, file.length));
-                B = 0;
-            }
-            else if (i + 8 > file.length) {
-                A = ByteUtils.bytesToLong(Arrays.copyOfRange(file, i, i+4));
-                B = ByteUtils.bytesToLong(Arrays.copyOfRange(file, i+4, file.length));
-            }
-            else {
-                A = ByteUtils.bytesToLong(Arrays.copyOfRange(file, i, i + 4));
-                B = ByteUtils.bytesToLong(Arrays.copyOfRange(file, i + 4, i + 8));
-            }
+            setData(i, file);
             start();
             code();
             code.add(A);
             code.add(B);
         }
         FileOutputStream fileOutputStream = new FileOutputStream(
-            new File("out.txt"));
+            new File("code_out.txt"));
         for (Long l: code) {
             fileOutputStream.write(ByteUtils.longToBytes(l));
         }
         fileOutputStream.close();
     }
 
+
+    private void setData(int i, byte[] file) {
+        if (i + 4 > file.length) {
+            A = ByteUtils.bytesToLong(Arrays.copyOfRange(file, i, file.length));
+            B = 0;
+        }
+        else if (i + 8 > file.length) {
+            A = ByteUtils.bytesToLong(Arrays.copyOfRange(file, i, i+4));
+            B = ByteUtils.bytesToLong(Arrays.copyOfRange(file, i+4, file.length));
+        }
+        else {
+            A = ByteUtils.bytesToLong(Arrays.copyOfRange(file, i, i + 4));
+            B = ByteUtils.bytesToLong(Arrays.copyOfRange(file, i + 4, i + 8));
+        }
+    }
+
+    /**
+     * decoding file
+     * @param path path to file which need decode
+     * @throws IOException if some gone wrong
+     */
     public void decodeFile(String path) throws IOException {
         FileInputStream inputStream = new FileInputStream(
             new File(path));
         byte[] file = inputStream.readAllBytes();
-        System.out.println(file.length);
+        System.out.println("length = " + file.length);
         Vector<Long> code = new Vector<>();
         for (int i = 0; i < file.length; i += 8) {
-            //System.out.println("hh");
-            if (i + 4 > file.length) {
-                A = ByteUtils.bytesToLong(Arrays.copyOfRange(file, i, file.length));
-                B = 0;
-            }
-            else if (i + 8 > file.length) {
-                A = ByteUtils.bytesToLong(Arrays.copyOfRange(file, i, i+4));
-                B = ByteUtils.bytesToLong(Arrays.copyOfRange(file, i+4, file.length));
-            }
-            else {
-                A = ByteUtils.bytesToLong(Arrays.copyOfRange(file, i, i + 4));
-                B = ByteUtils.bytesToLong(Arrays.copyOfRange(file, i + 4, i + 8));
-            }
+            setData(i, file);
             start();
             decode();
             code.add(A);
             code.add(B);
         }
         FileOutputStream fileOutputStream = new FileOutputStream(
-            new File("out2.txt"));
-        byte[] file2 = new byte[code.size()*BLOCK_HALF];
+            new File("decode_out.txt"));
+        Vector<Byte> file2= new Vector<>();
         byte[] v;
-        int y = 0;
         for (Long l: code) {
-            System.out.println(l);
             v = ByteUtils.longToBytes(l);
-            if (l == 0) continue;
             for (int i = 0; i < 4; i++) {
-                file2[y++] = v[i];
+                if (v[i] == 0) continue;
+                file2.add(v[i]);
             }
-            //fileOutputStream.write(ByteUtils.longToBytes(l));
         }
-        fileOutputStream.write(file2);
+        for (Byte b : file2) {
+            fileOutputStream.write(b);
+        }
+
+        fileOutputStream.close();
     }
 
     public static void main(String[] args) throws IOException, URISyntaxException {
@@ -215,7 +243,7 @@ public class Rc5 {
         rc5.key[34] = 3;
         //System.out.println(rc5.MOD);
         rc5.codeFile("/test.txt");
-        rc5.decodeFile("out.txt");
+        rc5.decodeFile("code_out.txt");
     }
 
 }
