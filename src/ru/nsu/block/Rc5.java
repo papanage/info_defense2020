@@ -25,7 +25,7 @@ public class Rc5 {
     /**
      * length of key
      */
-    final int  KEY_LENGTH = 128;
+    final int  KEY_LENGTH = 16;
 
     /**
      * half of block size
@@ -78,6 +78,10 @@ public class Rc5 {
      */
     long A = 0xFFFFFF, B = -1432423;
 
+
+    public Rc5() {
+        start();
+    }
     /**
      * put big key in mass by part of length = BLOCK_HALF/8
      */
@@ -86,7 +90,7 @@ public class Rc5 {
         for (int i = 0; i < KEY_LENGTH/(BLOCK_HALF/8); i++) {
             l_mass.add(Arrays.copyOfRange(key,i*BLOCK_HALF/8, (i+1)*BLOCK_HALF/8));
         }
-
+        //System.out.println(l_mass.size());
     }
 
     /**
@@ -104,7 +108,7 @@ public class Rc5 {
         int i = 0, j = 0;
         for (int n = 0; n < max(l_mass.size()*2, 6*(ROUND_COUNT+1)); n++) {
             G = ByteUtils.cycleShift(s[i] + (G + H) % MOD, 3) % MOD;
-            H = ByteUtils.cycleShift(ByteUtils.bytesToLong(l_mass.get(i)) % MOD + (G + H) % MOD ,  G + H) % MOD;
+            H = ByteUtils.cycleShift(ByteUtils.bytesToLong(l_mass.get(j)) % MOD + (G + H) % MOD ,  G + H) % MOD;
             i = (i + 1) % 2*(ROUND_COUNT + 1);
             j = (j + 1) % l_mass.size();
         }
@@ -114,7 +118,7 @@ public class Rc5 {
      * round encoding
      */
     private void code() {
-        System.out.println("start: " +A + " " + B);
+      //  System.out.println("start: " +A + " " + B);
         A = (A + s[0]) % MOD;
         B = (B + s[1]) % MOD;
         for (int i = 0; i < ROUND_COUNT; i++) {
@@ -133,7 +137,7 @@ public class Rc5 {
         }
         A = (A - s[0] + MOD) % MOD;
         B = (B - s[1] + MOD) % MOD;
-        System.out.println("res: " + A + " " + B);
+        //System.out.println("res: " + A + " " + B);
     }
 
     /**
@@ -154,7 +158,7 @@ public class Rc5 {
      * start rc5
      * better run on 64x
      */
-    public void start() {
+    private void start() {
         keyToWords();
         extendKey();
         shake();
@@ -172,7 +176,7 @@ public class Rc5 {
         Vector<Long> code = new Vector<>();
         for (int i = 0; i < file.length; i += 8) {
             setData(i, file);
-            start();
+
             code();
             code.add(A);
             code.add(B);
@@ -183,6 +187,35 @@ public class Rc5 {
             fileOutputStream.write(ByteUtils.longToBytes(l));
         }
         fileOutputStream.close();
+    }
+
+    /**
+     * code file
+     * @param path path to file
+     * @throws IOException if some gone wrong
+     */
+    public long hashFile(String path) throws IOException {
+        InputStream inputStream = Rc5.class.getResourceAsStream(path);
+
+        byte[] file = inputStream.readAllBytes();
+        System.out.println(file.length);
+        inputStream.close();
+        long enc1 = 0, enc2 = 0;
+        long res1 = 0, res2 = 0;
+        for (int i = 0; i < file.length; i += 8) {
+            setData(i, file);
+            if (i > 0) {
+                res1 = enc1 ^ A;
+                res2 = enc2 ^ B;
+            }
+            start();
+            code();
+            System.out.println(A + " " + B);
+            enc1 = A;
+            enc2 = B;
+        }
+        System.out.println(res1 + " " + res2);
+        return (res1 << 32) | res2;
     }
 
 
@@ -210,11 +243,11 @@ public class Rc5 {
         FileInputStream inputStream = new FileInputStream(
             new File(path));
         byte[] file = inputStream.readAllBytes();
-        System.out.println("length = " + file.length);
+        //System.out.println("length = " + file.length);
         Vector<Long> code = new Vector<>();
         for (int i = 0; i < file.length; i += 8) {
             setData(i, file);
-            start();
+
             decode();
             code.add(A);
             code.add(B);
@@ -240,9 +273,10 @@ public class Rc5 {
     public static void main(String[] args) throws IOException, URISyntaxException {
         Rc5 rc5 = new Rc5();
         Arrays.fill(rc5.key, (byte) 1);
-        rc5.key[34] = 3;
+        //rc5.key[34] = 3;
         //System.out.println(rc5.MOD);
         rc5.codeFile("/test.txt");
+        System.out.println(" hash = " + rc5.hashFile("/test.txt"));
         rc5.decodeFile("code_out.txt");
     }
 
