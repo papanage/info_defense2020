@@ -32,7 +32,7 @@ public class Rc5 {
      * usually equals machine word length
      * for simply I use 32
      */
-    static final int BLOCK_HALF = 32;
+    public static  final int BLOCK_HALF = 40;
 
     /**
      * modulo of Gayla field
@@ -90,7 +90,6 @@ public class Rc5 {
         for (int i = 0; i < KEY_LENGTH/(BLOCK_HALF/8); i++) {
             l_mass.add(Arrays.copyOfRange(key,i*BLOCK_HALF/8, (i+1)*BLOCK_HALF/8));
         }
-        //System.out.println(l_mass.size());
     }
 
     /**
@@ -107,8 +106,8 @@ public class Rc5 {
         long G = 0, H = 0;
         int i = 0, j = 0;
         for (int n = 0; n < max(l_mass.size()*2, 6*(ROUND_COUNT+1)); n++) {
-            G = ByteUtils.cycleShift(s[i] + (G + H) % MOD, 3) % MOD;
-            H = ByteUtils.cycleShift(ByteUtils.bytesToLong(l_mass.get(j)) % MOD + (G + H) % MOD ,  G + H) % MOD;
+            G = ByteUtils.cycleShift(s[i] + (G + H) % MOD, 3);
+            H = ByteUtils.cycleShift(ByteUtils.bytesToLong(l_mass.get(j)) % MOD + (G + H) % MOD ,  G + H);
             i = (i + 1) % 2*(ROUND_COUNT + 1);
             j = (j + 1) % l_mass.size();
         }
@@ -118,12 +117,12 @@ public class Rc5 {
      * round encoding
      */
     private void code() {
-      //  System.out.println("start: " +A + " " + B);
+        System.out.println("start: " +A + " " + B);
         A = (A + s[0]) % MOD;
         B = (B + s[1]) % MOD;
         for (int i = 0; i < ROUND_COUNT; i++) {
-            A = (ByteUtils.cycleShift(A^B, B) % MOD + s[2*i]) % MOD;
-            B = (ByteUtils.cycleShift(B^A, A) % MOD + s[2*i + 1]) % MOD;
+            A = (ByteUtils.cycleShift(A^B, B) + s[2*i]) % MOD;
+            B = (ByteUtils.cycleShift(B^A, A) + s[2*i + 1]) % MOD;
         }
     }
 
@@ -132,12 +131,12 @@ public class Rc5 {
      */
     private void decode() {
         for (int i = ROUND_COUNT - 1; i  >= 0; i--) {
-            B = (ByteUtils.cycleShift((B - s[2*i + 1] + MOD) % MOD, -A) % MOD) ^ A;
-            A = (ByteUtils.cycleShift((A - s[2*i] + MOD) % MOD, -B) % MOD) ^ B;
+            B = ByteUtils.cycleShift((B - s[2*i + 1] + MOD) % MOD, -A) ^ A;
+            A = ByteUtils.cycleShift((A - s[2*i] + MOD) % MOD, -B) ^ B;
         }
         A = (A - s[0] + MOD) % MOD;
         B = (B - s[1] + MOD) % MOD;
-        //System.out.println("res: " + A + " " + B);
+        System.out.println("res: " + A + " " + B);
     }
 
     /**
@@ -174,9 +173,8 @@ public class Rc5 {
         byte[] file = inputStream.readAllBytes();
         inputStream.close();
         Vector<Long> code = new Vector<>();
-        for (int i = 0; i < file.length; i += 8) {
+        for (int i = 0; i < file.length; i += BLOCK_HALF/4) {
             setData(i, file);
-
             code();
             code.add(A);
             code.add(B);
@@ -211,26 +209,30 @@ public class Rc5 {
             start();
             code();
             System.out.println(A + " " + B);
+            if (i == 0) {
+                res1 = A;
+                res2 = B;
+            }
             enc1 = A;
             enc2 = B;
         }
         System.out.println(res1 + " " + res2);
-        return (res1 << 32) | res2;
+        return (res1 << BLOCK_HALF) | res2;
     }
 
 
     private void setData(int i, byte[] file) {
-        if (i + 4 > file.length) {
+        if (i + BLOCK_HALF/8 > file.length) {
             A = ByteUtils.bytesToLong(Arrays.copyOfRange(file, i, file.length));
             B = 0;
         }
-        else if (i + 8 > file.length) {
-            A = ByteUtils.bytesToLong(Arrays.copyOfRange(file, i, i+4));
-            B = ByteUtils.bytesToLong(Arrays.copyOfRange(file, i+4, file.length));
+        else if (i + BLOCK_HALF/4 > file.length) {
+            A = ByteUtils.bytesToLong(Arrays.copyOfRange(file, i, i+BLOCK_HALF/8));
+            B = ByteUtils.bytesToLong(Arrays.copyOfRange(file, i+BLOCK_HALF/8, file.length));
         }
         else {
-            A = ByteUtils.bytesToLong(Arrays.copyOfRange(file, i, i + 4));
-            B = ByteUtils.bytesToLong(Arrays.copyOfRange(file, i + 4, i + 8));
+            A = ByteUtils.bytesToLong(Arrays.copyOfRange(file, i, i + BLOCK_HALF/8));
+            B = ByteUtils.bytesToLong(Arrays.copyOfRange(file, i + BLOCK_HALF/8, i + BLOCK_HALF/4));
         }
     }
 
@@ -245,7 +247,7 @@ public class Rc5 {
         byte[] file = inputStream.readAllBytes();
         //System.out.println("length = " + file.length);
         Vector<Long> code = new Vector<>();
-        for (int i = 0; i < file.length; i += 8) {
+        for (int i = 0; i < file.length; i += BLOCK_HALF/4) {
             setData(i, file);
 
             decode();
@@ -258,7 +260,7 @@ public class Rc5 {
         byte[] v;
         for (Long l: code) {
             v = ByteUtils.longToBytes(l);
-            for (int i = 0; i < 4; i++) {
+            for (int i = 0; i < BLOCK_HALF/8; i++) {
                 if (v[i] == 0) continue;
                 file2.add(v[i]);
             }
@@ -276,7 +278,7 @@ public class Rc5 {
         //rc5.key[34] = 3;
         //System.out.println(rc5.MOD);
         rc5.codeFile("/test.txt");
-        System.out.println(" hash = " + rc5.hashFile("/test.txt"));
+       // System.out.println(" hash = " + rc5.hashFile("/test.txt"));
         rc5.decodeFile("code_out.txt");
     }
 
