@@ -32,12 +32,12 @@ public class Rc5 {
      * usually equals machine word length
      * for simply I use 32
      */
-    public static  final int BLOCK_HALF = 40;
+    public static  final int BLOCK_HALF = 56;
 
     /**
      * modulo of Gayla field
      */
-    final long MOD = pow(2, BLOCK_HALF);
+    public static final long MOD = pow(2, BLOCK_HALF);
 
     /**
      * counts of rounds
@@ -145,7 +145,7 @@ public class Rc5 {
      * @param y
      * @return
      */
-    private long pow(long x, long y) {
+    private static long pow(long x, long y) {
         long res = 1;
         while (y-- != 0) {
             res *= x;
@@ -200,7 +200,7 @@ public class Rc5 {
         inputStream.close();
         long enc1 = 0, enc2 = 0;
         long res1 = 0, res2 = 0;
-        for (int i = 0; i < file.length; i += 8) {
+        for (int i = 0; i < file.length; i += BLOCK_HALF/4) {
             setData(i, file);
             if (i > 0) {
                 res1 = enc1 ^ A;
