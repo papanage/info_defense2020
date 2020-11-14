@@ -1,12 +1,17 @@
 package ru.nsu.block;
 
+import lombok.Getter;
+import lombok.Setter;
+
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.URISyntaxException;
+import java.time.Instant;
 import java.util.Arrays;
+import java.util.Random;
 import java.util.Vector;
 
 import static java.lang.Long.max;
@@ -25,24 +30,31 @@ public class Rc5 {
     /**
      * length of key
      */
-    final int  KEY_LENGTH = 16;
+    @Getter
+    @Setter
+   private int  KEY_LENGTH = 16;
 
     /**
      * half of block size
      * usually equals machine word length
      * for simply I use 32
      */
-    public static  final int BLOCK_HALF = 56;
+    @Getter
+    @Setter
+    private static int BLOCK_HALF = 56;
 
     /**
      * modulo of Gayla field
      */
-    public static final long MOD = pow(2, BLOCK_HALF);
+    @Getter
+    private static long MOD = pow(2, BLOCK_HALF);
 
     /**
      * counts of rounds
      */
-    final int ROUND_COUNT = 12;
+    @Getter
+    @Setter
+    private int ROUND_COUNT = 12;
 
     /**
      * magic constant - depends of BLOCK_HALF
@@ -57,26 +69,28 @@ public class Rc5 {
     /**
      *  key
      */
-    public byte[] key = new byte[KEY_LENGTH];
+    @Getter
+    @Setter
+    private byte[] key = new byte[KEY_LENGTH];
 
     /**
      * mass with part of key
      * length of part is no more than long size
      * use for work in Gayla field
      */
-    Vector<byte[]>  l_mass;
+    private Vector<byte[]>  l_mass;
 
     /**
      * special array for constants
      */
-    Long[] s = new Long[2*(ROUND_COUNT+1)];
+    private Long[] s = new Long[2*(ROUND_COUNT+1)];
 
     /**
      * data for encoding
      * actually we work with integer,
      * but packing in little 4 byte of long
      */
-    long A = 0xFFFFFF, B = -1432423;
+    private long A = 0xFFFFFF, B = -1432423;
 
 
     public Rc5() {
@@ -117,7 +131,6 @@ public class Rc5 {
      * round encoding
      */
     private void code() {
-        System.out.println("start: " +A + " " + B);
         A = (A + s[0]) % MOD;
         B = (B + s[1]) % MOD;
         for (int i = 0; i < ROUND_COUNT; i++) {
@@ -136,7 +149,6 @@ public class Rc5 {
         }
         A = (A - s[0] + MOD) % MOD;
         B = (B - s[1] + MOD) % MOD;
-        System.out.println("res: " + A + " " + B);
     }
 
     /**
@@ -196,28 +208,26 @@ public class Rc5 {
         InputStream inputStream = Rc5.class.getResourceAsStream(path);
 
         byte[] file = inputStream.readAllBytes();
-        System.out.println(file.length);
         inputStream.close();
-        long enc1 = 0, enc2 = 0;
         long res1 = 0, res2 = 0;
+        Random random = new Random(Instant.now().hashCode());
+        long IV = random.nextLong();
         for (int i = 0; i < file.length; i += BLOCK_HALF/4) {
             setData(i, file);
-            if (i > 0) {
-                res1 = enc1 ^ A;
-                res2 = enc2 ^ B;
-            }
+            res1 = A;
+            res2 = B;
             start();
             code();
-            System.out.println(A + " " + B);
-            if (i == 0) {
-                res1 = A;
-                res2 = B;
+            if (i > 0) {
+                A = A ^ res1;
+                B = B ^ res2;
             }
-            enc1 = A;
-            enc2 = B;
+            else {
+                A = A ^ IV;
+                B = B ^ IV;
+            }
         }
-        System.out.println(res1 + " " + res2);
-        return (res1 << BLOCK_HALF) | res2;
+        return (A << BLOCK_HALF) | B;
     }
 
 
@@ -245,7 +255,6 @@ public class Rc5 {
         FileInputStream inputStream = new FileInputStream(
             new File(path));
         byte[] file = inputStream.readAllBytes();
-        //System.out.println("length = " + file.length);
         Vector<Long> code = new Vector<>();
         for (int i = 0; i < file.length; i += BLOCK_HALF/4) {
             setData(i, file);
@@ -272,13 +281,11 @@ public class Rc5 {
         fileOutputStream.close();
     }
 
-    public static void main(String[] args) throws IOException, URISyntaxException {
+    public static void main(String[] args) throws IOException{
         Rc5 rc5 = new Rc5();
         Arrays.fill(rc5.key, (byte) 1);
-        //rc5.key[34] = 3;
-        //System.out.println(rc5.MOD);
         rc5.codeFile("/test.txt");
-       // System.out.println(" hash = " + rc5.hashFile("/test.txt"));
+        System.out.println(" hash = " + rc5.hashFile("/test.txt"));
         rc5.decodeFile("code_out.txt");
     }
 
